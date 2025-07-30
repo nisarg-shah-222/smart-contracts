@@ -1,27 +1,71 @@
-name: Solidity Static Analysis
+name: Smart Contract PR Reviewer
 
 on:
   pull_request:
+    branches:
+      - main
     paths:
-      - 'contracts/**/*.sol'
+      - '**/*.sol'
 
 jobs:
-  static_analysis:
+  review_pr:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+    env:
+      BACKEND_URL: ${{ secrets.BACKEND_URL }}
 
-      - name: Setup Python
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Important for diff
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Slither
+      - name: Prepare diff and codebase payload
         run: |
-          pip install slither-analyzer
+          git fetch origin main
+          git diff origin/main...HEAD > diff.patch
 
-      - name: Run Slither Analysis
+          python - <<EOF
+          import subprocess, json
+
+          files = subprocess.check_output(
+              "git diff --name-only origin/main...HEAD '*.sol'", shell=True, text=True
+          ).splitlines()
+
+          codebase = {}
+          for f in files:
+              with open(f, 'r') as file:
+                  codebase[f] = file.read()
+
+          payload = {
+              "diff": open("diff.patch").read(),
+              "codebase": codebase
+          }
+
+          json.dump(payload, open("payload.json", "w"))
+          EOF
+
+      - name: Call backend API
+        id: call_backend
         run: |
-          slither contracts/ --print human-summary
+          RESPONSE=$(curl -s -X POST "$BACKEND_URL/analyze" \
+            -H "Content-Type: application/json" \
+            --data-binary @payload.json)
+
+          echo "review_comment<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" | jq -r '.review_comment' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## 🤖 Automated Smart Contract PR Review
+            
+            ${{ steps.call_backend.outputs.review_comment }}
