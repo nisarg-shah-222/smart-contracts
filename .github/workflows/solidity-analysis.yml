@@ -1,0 +1,27 @@
+name: Solidity Static Analysis
+
+on:
+  pull_request:
+    paths:
+      - 'contracts/**/*.sol'
+
+jobs:
+  static_analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Slither
+        run: |
+          pip install slither-analyzer
+
+      - name: Run Slither Analysis
+        run: |
+          slither contracts/ --print human-summary
