@@ -7,6 +7,10 @@ on:
     paths:
       - '**/*.sol'
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   review_pr:
     runs-on: ubuntu-latest
@@ -24,20 +28,31 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Prepare diff and codebase payload
+      - name: Generate diff file
         run: |
+          echo "📝 Generating diff..."
           git fetch origin main
           git diff origin/main...HEAD > diff.patch
+          echo "✅ Diff generated:"
+          cat diff.patch
 
+      - name: Prepare codebase payload
+        run: |
+          echo "📂 Collecting changed Solidity files..."
           python - <<EOF
           import subprocess, json
 
           files = subprocess.check_output(
-              "git diff --name-only origin/main...HEAD '*.sol'", shell=True, text=True
+              "git diff --name-only origin/main...HEAD '*.sol'",
+              shell=True,
+              text=True
           ).splitlines()
+
+          print("🔍 Files changed:", files)
 
           codebase = {}
           for f in files:
+              print(f"📄 Reading {f}")
               with open(f, 'r') as file:
                   codebase[f] = file.read()
 
@@ -46,18 +61,26 @@ jobs:
               "codebase": codebase
           }
 
-          json.dump(payload, open("payload.json", "w"))
+          json.dump(payload, open("payload.json", "w"), indent=2)
+          print("✅ Payload prepared:")
+          print(json.dumps(payload, indent=2))
           EOF
 
       - name: Call backend API
         id: call_backend
         run: |
+          echo "📡 Sending payload to backend API at $BACKEND_URL..."
           RESPONSE=$(curl -s -X POST "$BACKEND_URL/analyze" \
             -H "Content-Type: application/json" \
             --data-binary @payload.json)
 
+          echo "✅ Response received from backend:"
+          echo "$RESPONSE" | jq '.'
+
+          REVIEW_COMMENT=$(echo "$RESPONSE" | jq -r '.review_comment')
+
           echo "review_comment<<EOF" >> $GITHUB_OUTPUT
-          echo "$RESPONSE" | jq -r '.review_comment' >> $GITHUB_OUTPUT
+          echo "$REVIEW_COMMENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Comment on PR
@@ -69,3 +92,7 @@ jobs:
             ## 🤖 Automated Smart Contract PR Review
             
             ${{ steps.call_backend.outputs.review_comment }}
+
+      - name: Finish workflow
+        run: |
+          echo "🎉 Workflow completed successfully."
