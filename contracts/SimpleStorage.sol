@@ -5,6 +5,7 @@ contract SimpleStorage {
     uint256 public storedValue;
 
     function set(uint256 _value) external {
+        require(_value <= 1000, "Value too high");
         storedValue = _value;
     }
 
