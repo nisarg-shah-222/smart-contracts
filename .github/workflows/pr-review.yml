@@ -13,6 +13,6 @@ jobs:
 
     steps:
       - name: Smart Contract PR Reviewer
-        uses: nisarg-shah-222/smart-contract-pr-reviewer@v1
+        uses: nisarg-shah-222/smart-contract-pr-reviewer@v1.1
         with:
           backend_url: ${{ env.BACKEND_URL }}
