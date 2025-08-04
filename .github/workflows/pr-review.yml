@@ -2,7 +2,14 @@ name: Smart Contract PR Reviewer
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    branches:
+      - main
+    paths:
+      - '**/*.sol'
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   smart-contract-pr-reviewer:
