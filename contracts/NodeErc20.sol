@@ -31,6 +31,7 @@ contract NODE is
 
     uint256[50] private __gap;
 
+
     /* ========== ERRORS ========== */
 
     error MintTimestampNotElapsed(uint256 currentTimestamp, uint256 nextMintTimestamp);
